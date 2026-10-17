@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedbacks Heart</title>
+<style>
+    /* Real Telegram UI alignment aur matching sizes (18px) */
+    img.emoji { 
+        height: 18px !important; 
+        width: 18px !important; 
+        margin: 0 0.5px !important; /* Half pixel space */
+        vertical-align: -3px !important; 
+        display: inline-block !important; 
+        object-fit: contain !important;
+    }
+</style>
+</head>
+<body>
+
+  <!-- Example Content Box -->
+  <div id="box" style="padding: 20px; border: 1px solid #ddd; background: #fff; width: 320px;">
+      <h2>Telegram Feedbacks ❤️⚡</h2>
+      <p>Ahmad Trader 🔥 👍 🚀 ⭐</p>
+  </div>
+
+  <button class="btn" style="margin-top: 15px; padding: 8px 16px; cursor: pointer;">Download Canvas</button>
+
+  <!-- HTML2Canvas Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <script id="js">
+  (function() {
+      'use strict';
+
+      /* ------------------ VERCEL EMOJI API CONFIG ------------------ */
+      // Apni Vercel API URL use karein (Relative URL /emoji/?id= automated hai)
+      const EMOJI_API_URL = '/emoji/?id=';
+
+      // Emoji Regex matcher
+      const emojiRegex = /(\p{Extended_Pictographic}|\p{Emoji_Component})+/gu;
+
+      /* ------------------ DOM PARSER ENGINE ------------------ */
+      function parseEmojis(rootElement = document.body) {
+          const walker = document.createTreeWalker(
+              rootElement,
+              NodeFilter.SHOW_TEXT,
+              null,
+              false
+          );
+
+          const nodesToReplace = [];
+          let currentNode;
+
+          while (currentNode = walker.nextNode()) {
+              if (currentNode.parentElement && 
+                  currentNode.parentElement.tagName !== 'SCRIPT' && 
+                  currentNode.parentElement.tagName !== 'STYLE' &&
+                  !currentNode.parentElement.classList.contains('emoji')) {
+                  if (emojiRegex.test(currentNode.nodeValue)) {
+                      nodesToReplace.push(currentNode);
+                  }
+              }
+          }
+
+          nodesToReplace.forEach(node => {
+              const parent = node.parentNode;
+              const text = node.nodeValue;
+              const fragment = document.createDocumentFragment();
+              let lastIndex = 0;
+
+              text.replace(emojiRegex, (match, p1, offset) => {
+                  if (offset > lastIndex) {
+                      fragment.appendChild(document.createTextNode(text.substring(lastIndex, offset)));
+                  }
+
+                  // Vercel Serverless API se Emoji Load karna
+                  const img = document.createElement('img');
+                  img.src = `${EMOJI_API_URL}${encodeURIComponent(match)}`;
+                  img.alt = match;
+                  img.className = 'emoji';
+                  img.crossOrigin = 'anonymous'; // Canvas Download Cross-Origin fix
+
+                  img.onerror = function() {
+                      const span = document.createElement('span');
+                      span.textContent = match;
+                      if (img.parentNode) {
+                          img.parentNode.replaceChild(span, img);
+                      }
+                  };
+
+                  fragment.appendChild(img);
+                  lastIndex = offset + match.length;
+              });
+
+              if (lastIndex < text.length) {
+                  fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+              }
+
+              parent.replaceChild(fragment, node);
+          });
+      }
+
+      /* ------------------ ENGINE INITIALIZER ------------------ */
+      function startTelegramEmojiEngine() {
+          // Initial Execution
+          parseEmojis(document.body);
+
+          // Real-time Mutation Observer (Dynamic elements/chats handle karne ke liye)
+          const observer = new MutationObserver((mutations) => {
+              mutations.forEach((mutation) => {
+                  mutation.addedNodes.forEach((node) => {
+                      if (node.nodeType === 1) { 
+                          parseEmojis(node); 
+                      }
+                  });
+              });
+          });
+          observer.observe(document.body, { childList: true, subtree: true });
+
+          overrideDownloadSystem();
+      }
+
+      /* ------------------ DOWNLOAD CORS FIXER ------------------ */
+      function overrideDownloadSystem() {
+          const dlBtn = document.querySelector(".btn");
+          if (dlBtn && !dlBtn.dataset.hooked) {
+              dlBtn.dataset.hooked = "true";
+              const originalClick = dlBtn.onclick;
+              
+              dlBtn.onclick = async function(e) {
+                  if (window.html2canvas) {
+                      e.stopImmediatePropagation();
+                      document.body.contentEditable = "false";
+                      dlBtn.style.display = "none";
+
+                      const box = document.querySelector("#box");
+
+                      // Pre-convert images to base64 Data URI to avoid canvas download missing issue
+                      const images = box.querySelectorAll('img.emoji');
+                      await Promise.all(Array.from(images).map(img => {
+                          return new Promise((resolve) => {
+                              if (img.src.startsWith('data:')) return resolve();
+                              const canvas = document.createElement('canvas');
+                              const ctx = canvas.getContext('2d');
+                              const tempImg = new Image();
+                              tempImg.crossOrigin = 'anonymous';
+                              tempImg.onload = () => {
+                                  canvas.width = tempImg.width;
+                                  canvas.height = tempImg.height;
+                                  ctx.drawImage(tempImg, 0, 0);
+                                  try {
+                                      img.src = canvas.toDataURL('image/png');
+                                  } catch (err) {}
+                                  resolve();
+                              };
+                              tempImg.onerror = resolve;
+                              tempImg.src = img.src;
+                          });
+                      }));
+
+                      html2canvas(box, {
+                          scale: 4, // Sharp 4x Ultra HD Quality
+                          useCORS: true,
+                          allowTaint: true,
+                          logging: false,
+                          imageTimeout: 0
+                      }).then(canvas => {
+                          const a = document.createElement("a");
+                          a.download = `AhmadTrader_Feedback_${Date.now()}.png`;
+                          a.href = canvas.toDataURL("image/png", 1.0);
+                          a.click();
+                          
+                          dlBtn.style.display = "block";
+                          document.body.contentEditable = "true";
+                      });
+                  } else if (originalClick) {
+                      originalClick.call(this, e);
+                  }
+              };
+          }
+      }
+
+      if (document.body) {
+          startTelegramEmojiEngine();
+      } else {
+          window.addEventListener('DOMContentLoaded', startTelegramEmojiEngine);
+      }
+
+  })();
+  </script>
+</body>
+</html>
